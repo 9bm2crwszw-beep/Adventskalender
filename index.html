@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TEST – Adventskalender für Grundschulen – Medienzentrum</title>
+<style>
+  :root{ --gold:#f5c96a; --text:#fff8ec; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;background:#06111a}
+  body{font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;color:var(--text)}
+  #szene,#bgvideo{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0}
+  #bgvideo{object-fit:cover;display:none}
+
+  #kopf{position:absolute;top:0;left:0;right:0;z-index:2;text-align:center;pointer-events:none;
+        padding:clamp(10px,2.2vh,22px) 12px 0}
+  h1{font-family:Georgia,"Times New Roman",serif;font-weight:normal;letter-spacing:.02em;
+     font-size:clamp(24px,4.4vw,46px);text-shadow:0 2px 18px rgba(255,200,120,.45),0 2px 4px rgba(0,0,0,.7)}
+  #kopf p{margin-top:2px;font-size:clamp(12px,1.6vw,15px);opacity:.92;text-shadow:0 1px 4px #000,0 0 10px rgba(0,0,0,.6)}
+
+  /* Türchen: transparent, nur Rahmen und Zahl */
+  #kalender{position:absolute;inset:0;z-index:3;pointer-events:none}
+  .tuer{position:absolute;pointer-events:auto;transform:translate(-50%,-50%);
+        background:transparent;border:2px solid rgba(245,201,106,.85);border-radius:12px;cursor:pointer;
+        box-shadow:0 0 0 1px rgba(0,0,0,.35),inset 0 0 0 1px rgba(0,0,0,.35);
+        display:flex;align-items:center;justify-content:center;flex-direction:column;
+        color:var(--gold);font:inherit;transition:transform .25s,border-color .25s,box-shadow .25s}
+  .tuer .nr{font-family:Georgia,"Times New Roman",serif;font-size:var(--fs,32px);line-height:1;
+            text-shadow:0 0 3px #000,0 0 8px rgba(0,0,0,.9),0 2px 3px #000}
+  .tuer .schloss{display:none;flex-direction:column;align-items:center;gap:2px;font-size:calc(var(--fs,32px)*.62);line-height:1}
+  .tuer .schloss small{font-size:11px;color:#fff;text-shadow:0 0 3px #000,0 1px 2px #000;white-space:nowrap}
+  .tuer:hover,.tuer:focus-visible,.tuer:focus-within,.tuer.aktiv{transform:translate(-50%,-50%) scale(1.1);border-color:#ffe6a3;outline:none;
+        box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 18px rgba(255,214,120,.55)}
+  .tuer.gesperrt:hover .nr,.tuer.gesperrt:focus-visible .nr,.tuer.gesperrt.aktiv .nr{display:none}
+  .tuer.gesperrt:hover .schloss,.tuer.gesperrt:focus-visible .schloss,.tuer.gesperrt.aktiv .schloss{display:flex}
+  .tuer.bereit{border-color:#ffe6a3;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 12px rgba(255,214,120,.45)}
+  @keyframes leuchten{50%{border-color:#ffe6a3;box-shadow:0 0 0 1px rgba(0,0,0,.35),0 0 16px rgba(255,214,120,.6)}}
+  .tuer.offen{border-style:dashed;border-color:rgba(255,255,255,.7)}
+  .tuer.offen::after{content:"✓";position:absolute;top:2px;right:5px;font-size:12px;color:#fff;text-shadow:0 0 3px #000}
+  .tuer.wackeln{animation:wackeln .45s}
+  @keyframes wackeln{25%{transform:translate(-50%,-50%) rotate(-8deg)}50%{transform:translate(-50%,-50%) rotate(7deg)}75%{transform:translate(-50%,-50%) rotate(-4deg)}}
+
+  /* Inhalt direkt im Türchen beim Überfahren */
+  .tuer{width:var(--w);height:var(--h);transition:transform .25s,border-color .25s,box-shadow .25s,width .25s,height .25s,background-color .25s}
+  .tuer .inhalt{display:none;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:6px 8px;text-align:center;width:100%}
+  .tuer .knr{font-family:Georgia,"Times New Roman",serif;font-size:20px;line-height:1;color:var(--gold)}
+  .tuer .titel{font-size:12.5px;font-weight:600;line-height:1.2;color:#fff;
+               display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .tuer .inhalt a{font-size:12px;font-weight:700;color:#fff;background:#b3263a;padding:5px 13px;border-radius:999px;text-decoration:none;white-space:nowrap}
+  .tuer .inhalt a:hover,.tuer .inhalt a:focus-visible{background:#d23048;outline:2px solid #fff;outline-offset:2px}
+  .tuer:not(.gesperrt):is(:hover,:focus-within,.aktiv){width:max(var(--w),160px);height:auto;min-height:max(var(--h),122px);z-index:6;
+        transform:translate(calc(-50% + var(--dx,0px)),-50%);background:rgba(8,16,24,.8);animation:none}
+  .tuer:not(.gesperrt):is(:hover,:focus-within,.aktiv) .nr{display:none}
+  .tuer:not(.gesperrt):is(:hover,:focus-within,.aktiv) .inhalt{display:flex}
+  .tuer.offen:is(:hover,:focus-within,.aktiv)::after{display:none}
+
+  #hinweis{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(30px);opacity:0;z-index:11;
+           background:rgba(8,16,24,.92);border:1px solid rgba(245,201,106,.6);color:var(--text);
+           padding:10px 18px;border-radius:999px;font-size:14px;transition:.35s;pointer-events:none;max-width:90vw;text-align:center}
+  #hinweis.zeigen{opacity:1;transform:translateX(-50%) translateY(0)}
+  footer{position:fixed;right:8px;bottom:5px;z-index:2;font-size:10px;opacity:.6;color:#3a2a1a}
+  @media (prefers-reduced-motion:reduce){.tuer{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="szene" aria-hidden="true"></canvas>
+<video id="bgvideo" muted loop playsinline autoplay aria-hidden="true"></video>
+<header id="kopf">
+  <h1>Adventskalender für Grundschulen</h1>
+  <p>Jeden Tag im Dezember öffnet sich ein Türchen mit einem Medium aus unserer Mediathek.</p>
+</header>
+<main id="kalender" aria-label="Adventskalender für Grundschulen mit 24 Türchen"></main>
+<div id="hinweis" role="status" aria-live="polite"></div>
+<footer>Medienzentren Marburg-Biedenkopf</footer>
+
+<script>
+/* =====================================================================
+   KONFIGURATION – nur hier etwas ändern
+   ===================================================================== */
+const JAHR = 2026;                   // Kalenderjahr des Dezembers
+const NACH_WEIHNACHTEN_OFFEN = true; // nach dem 24.12. bleiben alle Türchen offen
+const TESTDATUM = null;
+const ALLE_OFFEN = true;             // true = alle Türchen sofort offen (nur zum Testen!)              // zum Testen z. B. "2026-12-07" eintragen, danach wieder null!
+const VIDEO_URL = "";                // optional: eigenes MP4 als Hintergrund (statt Animation)
+const ANORDNUNG = 3;                 // andere Zahl = andere zufällige Verteilung der Türchen
+
+// Ein Eintrag pro Tag: Titel, Link zum Medium, optional ein Emoji als Symbol
+const MEDIEN = {
+   1: {titel:"Advent und Weihnachten", link:"https://hessen.edupool.de/?record=xfwu-5500643&src=online&standort=26", icon:"🕯️"},
+   2: {titel:"Advent zu Hause", link:"https://hessen.edupool.de/?record=xfwumodule-5605022&src=online&standort=26", icon:"🍪"},
+   3: {titel:"Kirchliche Feste I", link:"https://hessen.edupool.de/?record=kfw-5553426&src=online&standort=26", icon:"⛪"},
+   4: {titel:"Der erste Adventskalender", link:"https://hessen.edupool.de/?record=kfw-5555487&src=online&standort=26", icon:"📅"},
+   5: {titel:"Der erste Adventskranz", link:"https://hessen.edupool.de/?record=kfw-5558028&src=online&standort=26", icon:"🕯️"},
+   6: {titel:"Nikolaus von Myra", link:"https://hessen.edupool.de/?record=fwu-5500404&src=online&standort=26", icon:"🎅"},
+   7: {titel:"Was wünscht sich das Christkind zu Weihnachten?", link:"https://hessen.edupool.de/?record=xfwu-5510580&src=online&standort=26", icon:"👼"},
+   8: {titel:"Der erste Weihnachtsbaum", link:"https://hessen.edupool.de/?record=kfw-4959973&src=online&standort=26", icon:"🎄"},
+   9: {titel:"Für jeden ein Licht", link:"https://hessen.edupool.de/?record=matthiasfilm-55505504&src=online&standort=26", icon:"💡"},
+  10: {titel:"Die gestohlene Weihnachtsgans", link:"https://hessen.edupool.de/?record=matthiasfilm-55508179&src=online&standort=26", icon:"🪿"},
+  11: {titel:"Sternschnuppen, Lebkuchen und Könige", link:"https://hessen.edupool.de/?record=ev_medienhaus-55500427&src=online&standort=26", icon:"🌠"},
+  12: {titel:"Feiertage – warum?", link:"https://hessen.edupool.de/?record=ev_medienhaus-5561232&src=online&standort=26", icon:"📅"},
+  13: {titel:"Was ist Weihnukka?", link:"https://hessen.edupool.de/?record=hr-hr00114&src=online&standort=26", icon:"🕎"},
+  14: {titel:"Ritter Rost – ein vorbildliches Weihnachtsfest", link:"https://hessen.edupool.de/?record=matthiasfilm-5553486&src=online&standort=26", icon:"🛡️"},
+  15: {titel:"Santa Claus and the Reindeer", link:"https://hessen.edupool.de/?record=xfwumodule-5605605&src=online&standort=26", icon:"🦌"},
+  16: {titel:"Sterne, Hirten, Engel und ein Stall", link:"https://hessen.edupool.de/?record=ev_medienhaus-5562020&src=online&standort=26", icon:"⭐"},
+  17: {titel:"Paule und das Krippenspiel", link:"https://hessen.edupool.de/?record=kfw-55503510&src=online&standort=26", icon:"🎭"},
+  18: {titel:"Weihnachten – Was verbinden wir mit diesem Fest?", link:"https://hessen.edupool.de/?record=ev_medienhaus-5565418&src=online&standort=26", icon:"🎁"},
+  19: {titel:"Plötzlich Santa", link:"https://hessen.edupool.de/?record=matthiasfilm-55500144&src=online&standort=26", icon:"🛷"},
+  20: {titel:"The Innkeeper: Holly und das Krippenspiel", link:"https://hessen.edupool.de/?record=kfw-55507225&src=online&standort=26", icon:"⭐"},
+  21: {titel:"Weihnachtsedition", link:"https://hessen.edupool.de/?record=matthiasfilm-5551766&src=online&standort=26", icon:"📀"},
+  22: {titel:"Jesu Geburt", link:"https://hessen.edupool.de/?record=xfwu-5511110&src=online&standort=26", icon:"👶"},
+  23: {titel:"Die Weihnachtsgeschichte", link:"https://hessen.edupool.de/?record=filmsortiment-5565388&src=online&standort=26", icon:"🫏"},
+  24: {titel:"Pettersson und Findus: Das schönste Weihnachten überhaupt", link:"https://hessen.edupool.de/?record=kfw-5565415&src=online&standort=26", icon:"🐱"},
+};
+/* ===================================================================== */
+
+/* ---------- Datum (immer deutsche Zeit) ---------- */
+function heute(){
+  const s = TESTDATUM || new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Berlin",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const [j,m,t] = s.split("-").map(Number); return {j,m,t};
+}
+function istFrei(tag){ if (ALLE_OFFEN) return true; const h=heute();
+  if (h.j > JAHR) return NACH_WEIHNACHTEN_OFFEN;
+  if (h.j < JAHR || h.m < 12) return false;
+  return h.t >= tag; }
+function tageBis(tag){ const h=heute(); return Math.round((Date.UTC(JAHR,11,tag)-Date.UTC(h.j,h.m-1,h.t))/864e5); }
+
+/* ---------- geöffnete Türchen merken (nur in diesem Browser) ---------- */
+const SPEICHER="mz-advent-"+JAHR;
+function geoeffnet(){ try{ return JSON.parse(localStorage.getItem(SPEICHER)||"[]"); }catch(e){ return []; } }
+function merken(tag){ try{ const a=geoeffnet(); if(!a.includes(tag)){ a.push(tag); localStorage.setItem(SPEICHER,JSON.stringify(a)); } }catch(e){} }
+
+/* ---------- gemeinsame Maße für Szene und Türchen ---------- */
+function masse(){ const W=innerWidth,H=innerHeight; const S=Math.max(.55,Math.min(1.3,Math.min(H/900,W/650))); return {W,H,S,GY:Math.round(H*.8)}; }
+
+/* ---------- Türchen erzeugen ---------- */
+const kal=document.getElementById("kalender");
+const kannHover=matchMedia("(hover: hover)").matches;
+const tueren=[];
+for(let tag=1;tag<=24;tag++){
+  const m=MEDIEN[tag]||{titel:"Überraschung",link:"#"};
+  const el=document.createElement("div"); el.className="tuer"; el.dataset.tag=tag; el.tabIndex=0; el.setAttribute("role","group");
+  el.innerHTML=`<span class="nr">${tag}</span><span class="schloss" aria-hidden="true">🔒<small>ab ${tag}. Dez.</small></span>
+    <span class="inhalt"><span class="knr">${tag}</span><span class="titel"></span><a target="_blank" rel="noopener">Ansehen ↗</a></span>`;
+  el.querySelector(".titel").textContent=m.titel;
+  const a=el.querySelector("a"); a.href=m.link; a.setAttribute("aria-label",m.titel+" ansehen (neues Fenster)");
+  a.addEventListener("click",e=>{ e.stopPropagation(); if(!istFrei(tag)){ e.preventDefault(); return; } geoeffnetMarkieren(tag); });
+  el.addEventListener("click",e=>{ e.stopPropagation(); klick(el,tag); });
+  el.addEventListener("keydown",e=>{ if((e.key==="Enter"||e.key===" ")&&e.target===el){ e.preventDefault(); klick(el,tag); } });
+  kal.appendChild(el); tueren.push(el);
+}
+function status(){
+  const offen=geoeffnet();
+  tueren.forEach(el=>{ const tag=+el.dataset.tag, frei=istFrei(tag);
+    el.classList.toggle("gesperrt",!frei); el.classList.toggle("offen",frei&&offen.includes(tag));
+    el.classList.toggle("bereit",frei&&!offen.includes(tag));
+    el.querySelector("a").tabIndex=frei?0:-1;
+    el.setAttribute("aria-label", frei?`Türchen ${tag}: ${(MEDIEN[tag]||{}).titel||""}`:`Türchen ${tag} – öffnet sich am ${tag}. Dezember`); });
+}
+function klick(el,tag){
+  if(!istFrei(tag)){
+    el.classList.remove("wackeln"); void el.offsetWidth; el.classList.add("wackeln");
+    tueren.forEach(t=>t!==el&&t.classList.remove("aktiv")); el.classList.add("aktiv");
+    const d=tageBis(tag);
+    zeige(d===1?`Noch 1 Tag Geduld – Türchen ${tag} öffnet sich morgen! 🎄`
+          : d>0?`Noch ${d} Tage Geduld – Türchen ${tag} öffnet sich am ${tag}. Dezember.`
+               :`Türchen ${tag} öffnet sich am ${tag}. Dezember.`);
+    return;
+  }
+  if(kannHover){ // Maus: Klick auf das Türchen öffnet das Medium direkt
+    window.open((MEDIEN[tag]||{}).link||"#","_blank","noopener"); geoeffnetMarkieren(tag);
+  } else {        // Touch: erster Tipp zeigt den Inhalt im Türchen, Tipp auf „Ansehen“ öffnet
+    tueren.forEach(t=>t.classList.toggle("aktiv",t===el));
+  }
+}
+function geoeffnetMarkieren(tag){ merken(tag); status(); }
+function verstecken(){ tueren.forEach(t=>t.classList.remove("aktiv")); }
+document.addEventListener("click",verstecken);
+addEventListener("keydown",e=>{ if(e.key==="Escape") verstecken(); });
+
+let hT; function zeige(t){ const h=document.getElementById("hinweis"); h.textContent=t; h.classList.add("zeigen"); clearTimeout(hT); hT=setTimeout(()=>h.classList.remove("zeigen"),3200); }
+
+/* ---------- Türchen kreuz und quer verteilen (unterer Bereich bleibt frei) ---------- */
+function verteilen(){
+  const {W,S,GY}=masse(); let sd=ANORDNUNG*9973+17; const rn=()=>{sd=(sd*16807)%2147483647;return (sd-1)/2147483646};
+  const oben=document.getElementById("kopf").getBoundingClientRect().bottom+10, unten=GY-60*S;
+  const rand=10, aw=W-2*rand, ah=Math.max(120,unten-oben);
+  // passendes Raster wählen (24 = 8×3, 6×4, 4×6, 3×8), damit die Abstände möglichst gleich sind
+  let best=null; [[8,3],[6,4],[4,6],[3,8]].forEach(([c,r])=>{ const q=(aw/c)/(ah/r), d=Math.abs(Math.log(q*0.92)); if(!best||d<best.d) best={c,r,d}; });
+  const cols=best.c, rows=best.r, cw=aw/cols, ch=ah/rows;
+  const basis=Math.max(40,Math.min(96,Math.min(cw,ch)*.62)), w=Math.min(cw*.9,basis*1.12), h=basis*.98, fs=Math.round(basis*.44);
+  // Zahlen zufällig auf die Felder verteilen, Position nur leicht versetzt
+  const reihenfolge=[...Array(24).keys()];
+  for(let i=23;i>0;i--){ const j=Math.floor(rn()*(i+1)); [reihenfolge[i],reihenfolge[j]]=[reihenfolge[j],reihenfolge[i]]; }
+  reihenfolge.forEach((z,i)=>{
+    const el=tueren[i], c=z%cols, rr=Math.floor(z/cols);
+    const jx=(cw-w)/2*.22*(rn()*2-1), jy=(ch-h)/2*.22*(rn()*2-1);
+    el.style.left=(rand+cw*(c+.5)+jx)+"px"; el.style.top=(oben+ch*(rr+.5)+jy)+"px";
+    el.style.setProperty("--w",w+"px"); el.style.setProperty("--h",h+"px"); el.style.setProperty("--fs",fs+"px");
+    const mx=rand+cw*(c+.5)+jx, halb=Math.max(w,160)/2+6;   // aufgeklappte Türchen am Rand nach innen schieben
+    el.style.setProperty("--dx",(Math.max(0,halb-mx)-Math.max(0,mx+halb-W))+"px");
+  });
+  verstecken();
+}
+status(); verteilen();
+let vT; addEventListener("resize",()=>{ clearTimeout(vT); vT=setTimeout(verteilen,150); });
+setInterval(status,60000); // um Mitternacht automatisch neues Türchen freischalten
+
+/* =====================================================================
+   HINTERGRUND: Weihnachtlicher Marktplatz
+   ===================================================================== */
+const ruhig = matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (VIDEO_URL){
+  const v=document.getElementById("bgvideo"); v.src=VIDEO_URL; v.style.display="block";
+  document.getElementById("szene").style.display="none";
+} else {
+(function(){
+  const cv=document.getElementById("szene"), cx=cv.getContext("2d");
+  let W,H,DPR,S,GY,YMIN, L={}, fenster=[], lichter=[], standLichter=[], laternen=[], leute=[], flocken=[], funkel=[], spitze, tbBreite;
+  let seed=11; const rnd=()=>{seed=(seed*16807)%2147483647;return (seed-1)/2147483646};
+  const r=(a,b)=>a+rnd()*(b-a), pick=a=>a[Math.floor(rnd()*a.length)];
+  const R=(a,b)=>a+Math.random()*(b-a);
+  function ebene(){ const c=document.createElement("canvas"); c.width=W*DPR; c.height=H*DPR; const g=c.getContext("2d"); g.scale(DPR,DPR); return [c,g]; }
+
+  const glow=document.createElement("canvas"); glow.width=glow.height=64;
+  (()=>{const g=glow.getContext("2d"),gr=g.createRadialGradient(32,32,0,32,32,32);
+    gr.addColorStop(0,"rgba(255,200,110,1)");gr.addColorStop(.4,"rgba(255,180,80,.35)");gr.addColorStop(1,"rgba(255,170,70,0)");
+    g.fillStyle=gr;g.fillRect(0,0,64,64);})();
+
+  const HAUSFARBEN=[
+    {f:"#2f5a5e",t:"#d8c38a"},{f:"#e3d6b4",t:"#fff6df"},{f:"#9b2d2a",t:"#ecdab4"},{f:"#c9b28a",t:"#f4e8cb"},
+    {f:"#b5322e",t:"#f3e3c3"},{f:"#8fbfaa",t:"#f6f0e0"},{f:"#2d3a40",t:"#d8c38a"},{f:"#efe5cc",t:"#ffffff"},{f:"#5f7f63",t:"#efe3c4"}];
+  const hell=hex=>{const n=parseInt(hex.slice(1),16);return ((n>>16)*.3+((n>>8)&255)*.59+(n&255)*.11)/255;};
+  const LICHT=["#ffd27a","#ffc55f","#ffdc95","#ffbe55","#ffe0a0"];
+
+  function aufbauen(){
+    DPR=Math.min(window.devicePixelRatio||1,2); ({W,H,S,GY}=masse());
+    cv.width=W*DPR; cv.height=H*DPR; cx.setTransform(DPR,0,0,DPR,0,0);
+    YMIN=GY+50*S; seed=11;
+    fenster=[]; lichter=[]; standLichter=[]; laternen=[]; leute=[]; funkel=[];
+
+    let g; [L.himmel,g]=ebene();
+    const hg=g.createLinearGradient(0,0,0,GY); hg.addColorStop(0,"#06111a"); hg.addColorStop(.6,"#0f2230"); hg.addColorStop(1,"#1a3341");
+    g.fillStyle=hg; g.fillRect(0,0,W,H);
+    for(let i=0,n=W*GY/1500;i<n;i++){ g.globalAlpha=r(.25,.9); g.fillStyle="#fff"; g.beginPath(); g.arc(r(0,W),r(0,GY*.75),r(.4,1.3),0,6.28); g.fill(); }
+    g.globalAlpha=1;
+    for(let i=0,n=Math.max(3,Math.round(W/260));i<n;i++) funkel.push({x:r(0,W),y:r(H*.03,H*.2),R:r(7,13)*S,p:r(0,6.28)});
+
+    let hgc; [L.haeuser,hgc]=ebene(); let vg; [L.vorn,vg]=ebene(); let sg; [L.staende,sg]=ebene();
+    let x=-r(10,70)*S, letzter=-1, letzteFarbe=-1;
+    while(x<W){
+      const w=r(150,225)*S; let typ; do{typ=Math.floor(rnd()*4);}while(typ===letzter); letzter=typ;
+      let fi; do{fi=Math.floor(rnd()*HAUSFARBEN.length);}while(fi===letzteFarbe); letzteFarbe=fi;
+      const h=Math.min(r(.3,.42)*H, GY-H*.16-w*.5);
+      haus(hgc,vg,x,w,h,typ,HAUSFARBEN[fi]); x+=w-1;
+    }
+    // ein paar Fenster sind von Anfang an dunkel
+    fenster.forEach(f=>{ if(!f.laden && rnd()<.08){ f.an=false; f.cur=AUS; } });
+
+    const bg=vg.createLinearGradient(0,GY,0,H); bg.addColorStop(0,"#e9dcc4"); bg.addColorStop(1,"#f7f0e2");
+    vg.fillStyle=bg; vg.fillRect(0,GY,W,H-GY);
+    vg.fillStyle="#f6efe1"; vg.beginPath(); vg.moveTo(0,GY+4*S);
+    for(let xx=0;xx<=W;xx+=12) vg.lineTo(xx,GY-2*S-Math.abs(Math.sin(xx*.05))*3*S); vg.lineTo(W,GY+8*S); vg.lineTo(0,GY+8*S); vg.fill();
+    vg.fillStyle="rgba(150,130,100,.10)"; vg.fillRect(0,GY+6*S,W,5*S);
+    for(let i=0;i<W/6;i++){ vg.fillStyle=`rgba(255,255,255,${r(.3,.8)})`; vg.beginPath(); vg.arc(r(0,W),r(GY+8*S,H),r(.6,1.8),0,6.28); vg.fill(); }
+
+    tbBreite=tanne(vg);
+    const frei=xx=>Math.abs(xx-W/2)>tbBreite/2+40*S;
+    const lPos=[]; for(let xx=W*.08;xx<W;xx+=Math.max(170*S,W/6)){ const p=xx+r(-25,25)*S; if(frei(p)) lPos.push(p); }
+    const bPos=[]; for(let xx=W*.18;xx<W;xx+=Math.max(260*S,W/4)){ const p=xx+r(-40,40)*S; if(frei(p)&&lPos.every(l=>Math.abs(l-p)>50*S)) bPos.push(p); }
+    bPos.forEach(p=>kahlerBaum(vg,p,GY+10*S));
+    lPos.forEach(p=>laterne(vg,p,GY+14*S));
+
+    // Weihnachtsmarktstände
+    const sperre=tbBreite*.3+20*S, namen=["Glühwein","Lebkuchen","Bratwurst","Crêpes","Kunsthandwerk","Maronen","Waffeln","Christbaumschmuck"];
+    let sx=r(10,60)*S, ni=Math.floor(rnd()*namen.length);
+    while(sx<W-60*S){
+      const sw=r(115,150)*S;
+      if(sx+sw>W/2-sperre && sx<W/2+sperre){ sx=W/2+sperre+r(10,40)*S; continue; }
+      stand(sg,sx,GY+40*S,sw); sx+=sw+r(70,190)*S;
+    }
+
+    const n=Math.min(40,Math.max(8,Math.round(W/50)));
+    for(let i=0;i<n;i++) leute.push(neuePerson());
+    leute.sort((a,b)=>a.y-b.y);
+
+    // Schnee gleichmäßig verteilt (geschichtetes Raster mit Zufallsversatz)
+    flocken=[]; const fl=Math.round(W*H/(ruhig?16000:5600)), sp=Math.ceil(Math.sqrt(fl*W/H)), ze=Math.ceil(fl/sp);
+    for(let i=0;i<sp;i++) for(let j=0;j<ze;j++){ const z=Math.random();
+      flocken.push({x:(i+Math.random())*W/sp,y:(j+Math.random())*H/ze,r:.7+z*2.3,v:28+z*42,ph:Math.random()*6.28,a:.5+z*.5,z}); }
+  }
+
+  /* ---------------- Haus ---------------- */
+  function haus(g,v,x,w,h,typ,F){
+    const top=GY-h, dunkel=hell(F.f)<.45, rahmen=dunkel?"#efe2c2":"#4d3c28";
+    // Schornsteine
+    g.fillStyle="#8f3b2c";
+    const chim=(cxp,ch)=>{ g.fillStyle="#8f3b2c"; g.fillRect(cxp,top-ch,14*S,ch); g.fillStyle="#6e2b20"; g.fillRect(cxp-2*S,top-ch,18*S,5*S);
+      g.fillStyle="#f4f4f0"; g.fillRect(cxp-2*S,top-ch-3*S,18*S,4*S); };
+    if(typ===0){ chim(x+w*.2,h*.16+28*S); if(rnd()<.6) chim(x+w*.7,h*.16+22*S); }
+    if(typ===1) chim(x+w*.72,w*.3);
+    // Fassade
+    g.fillStyle=F.f; g.fillRect(x,top,w,h);
+    if(F.f==="#9b2d2a"||F.f==="#b5322e"){ g.strokeStyle="rgba(0,0,0,.09)"; g.lineWidth=1;
+      for(let yy=top+6*S;yy<GY;yy+=6*S){ g.beginPath(); g.moveTo(x,yy); g.lineTo(x+w,yy); g.stroke(); } }
+    const sh=g.createLinearGradient(x,0,x+w,0); sh.addColorStop(0,"rgba(0,0,0,.18)"); sh.addColorStop(.12,"rgba(0,0,0,0)"); sh.addColorStop(.88,"rgba(0,0,0,0)"); sh.addColorStop(1,"rgba(0,0,0,.2)");
+    g.fillStyle=sh; g.fillRect(x,top,w,h);
+    // Dach / Giebel
+    let gw=null; // Fenster im Giebel
+    if(typ===0){ const rh=h*.16;
+      g.fillStyle="#cfd8dc"; g.beginPath(); g.moveTo(x-5*S,top); g.lineTo(x+w+5*S,top); g.lineTo(x+w-12*S,top-rh); g.lineTo(x+12*S,top-rh); g.fill();
+      g.fillStyle="#f1f3f2"; g.beginPath(); g.moveTo(x-5*S,top-3*S); g.lineTo(x+w+5*S,top-3*S); g.lineTo(x+w-12*S,top-rh); g.lineTo(x+12*S,top-rh); g.fill();
+      // Gaube
+      const dw=w*.24, dx=x+w/2-dw/2, dy=top-rh*.75;
+      g.fillStyle=F.f; g.fillRect(dx,dy,dw,rh*.75); g.fillStyle="#f4f4f0";
+      g.beginPath(); g.moveTo(dx-5*S,dy); g.lineTo(dx+dw/2,dy-dw*.45); g.lineTo(dx+dw+5*S,dy); g.fill();
+      gw={x:dx+dw*.25,y:dy+rh*.12,w:dw*.5,h:rh*.5,bogen:true};
+    } else if(typ===1){ const gh=w*.5;
+      g.fillStyle=F.f; g.beginPath(); g.moveTo(x,top+1); g.lineTo(x+w/2,top-gh); g.lineTo(x+w,top+1); g.fill();
+      g.strokeStyle="#f4f4f0"; g.lineWidth=7*S; g.lineJoin="round"; g.beginPath(); g.moveTo(x-3*S,top+2*S); g.lineTo(x+w/2,top-gh); g.lineTo(x+w+3*S,top+2*S); g.stroke();
+      g.strokeStyle=F.t; g.lineWidth=2*S; g.beginPath(); g.moveTo(x+4*S,top+6*S); g.lineTo(x+w/2,top-gh+9*S); g.lineTo(x+w-4*S,top+6*S); g.stroke();
+      gw={x:x+w/2-w*.08,y:top-gh*.55,w:w*.16,h:gh*.42,bogen:true};
+    } else if(typ===2){ const n=4, sw=w/(2*n+2), shh=w*.13;
+      g.fillStyle=F.f; g.beginPath(); g.moveTo(x,top+1);
+      for(let i=0;i<n;i++){ g.lineTo(x+i*sw,top-(i+1)*shh); g.lineTo(x+(i+1)*sw,top-(i+1)*shh); }
+      g.lineTo(x+n*sw,top-(n+1)*shh); g.lineTo(x+w-n*sw,top-(n+1)*shh);
+      for(let i=n-1;i>=0;i--){ g.lineTo(x+w-(i+1)*sw,top-(i+1)*shh); g.lineTo(x+w-i*sw,top-(i+1)*shh); }
+      g.lineTo(x+w,top+1); g.fill();
+      g.fillStyle="#f4f4f0";
+      for(let i=0;i<n;i++){ g.fillRect(x+i*sw-2*S,top-(i+1)*shh-3*S,sw+2*S,4*S); g.fillRect(x+w-(i+1)*sw,top-(i+1)*shh-3*S,sw+2*S,4*S); }
+      g.fillRect(x+n*sw-2*S,top-(n+1)*shh-3*S,2*sw+4*S,4*S);
+      gw={x:x+w/2-w*.07,y:top-shh*3.6,w:w*.14,h:shh*2.4,bogen:true};
+    } else { const gh=w*.62;
+      g.fillStyle=F.f; g.beginPath(); g.moveTo(x,top+1);
+      g.bezierCurveTo(x+w*.25,top,x+w*.08,top-gh*.5,x+w*.3,top-gh*.6); g.lineTo(x+w*.3,top-gh*.84);
+      g.quadraticCurveTo(x+w*.5,top-gh*1.1,x+w*.7,top-gh*.84); g.lineTo(x+w*.7,top-gh*.6);
+      g.bezierCurveTo(x+w*.92,top-gh*.5,x+w*.75,top,x+w,top+1); g.fill();
+      g.strokeStyle=F.t; g.lineWidth=4*S; g.beginPath(); g.moveTo(x+2*S,top);
+      g.bezierCurveTo(x+w*.25,top,x+w*.08,top-gh*.5,x+w*.3,top-gh*.6); g.lineTo(x+w*.3,top-gh*.84);
+      g.quadraticCurveTo(x+w*.5,top-gh*1.1,x+w*.7,top-gh*.84); g.lineTo(x+w*.7,top-gh*.6);
+      g.bezierCurveTo(x+w*.92,top-gh*.5,x+w*.75,top,x+w-2*S,top); g.stroke();
+      g.fillStyle=F.t; g.beginPath(); g.arc(x+w/2,top-gh*1.0,4*S,0,6.28); g.fill();
+      if(rnd()<.5){ g.fillRect(x+w/2-1.5*S,top-gh*1.0-22*S,3*S,22*S); g.fillRect(x+w/2-7*S,top-gh*1.0-16*S,14*S,3*S); }
+      // Schnörkel
+      g.lineWidth=2*S; g.beginPath(); g.arc(x+w*.18,top-6*S,6*S,3.6,6); g.arc(x+w*.82,top-6*S,6*S,3.4,5.8); g.stroke();
+      gw={x:x+w/2-w*.09,y:top-gh*.7,w:w*.18,h:gh*.42,bogen:true};
+    }
+    if(gw) fenster.push(neuesFenster(gw,rahmen));
+    // Gesims + Erdgeschoss
+    const eg=Math.max(70*S,h*.27);
+    g.fillStyle="rgba(0,0,0,.25)"; g.fillRect(x,GY-eg-6*S,w,6*S);
+    g.fillStyle=F.t; g.fillRect(x,GY-eg-8*S,w,3*S);
+    // Obergeschoss-Fenster
+    const fw=Math.min(28*S,w/5), fh=fw*1.45, rowH=fh+24*S;
+    const reihen=Math.max(1,Math.floor((h-eg-24*S)/rowH)), spalten=Math.max(2,Math.min(4,Math.round(w/(58*S))));
+    const bogen=rnd()<.35, kaesten=rnd()<.6;
+    for(let rr=0;rr<reihen;rr++){ const fy=GY-eg-14*S-(rr+1)*rowH+ (rowH-fh)/2;
+      for(let c=0;c<spalten;c++){ const fx=x+w*(c+.5)/spalten-fw/2;
+        fenster.push(neuesFenster({x:fx,y:fy,w:fw,h:fh,bogen},rahmen));
+        if(kaesten&&rr<2){ v.fillStyle="#2d5a36"; v.fillRect(fx-3*S,fy+fh+1,fw+6*S,6*S);
+          for(let k=0;k<4;k++){ v.fillStyle=pick(["#c8302c","#f2f0ea","#e14a3c"]); v.beginPath(); v.arc(fx+r(0,fw),fy+fh+r(0,3)*S,1.8*S,0,6.28); v.fill(); } }
+      } }
+    // Erdgeschoss: Schaufenster, Tür, Markise, Kranz
+    const fr=dunkel?"#c9b98f":"#2f4f45";
+    v.fillStyle=fr; g.fillStyle=fr; g.fillRect(x+w*.05,GY-eg*.86,w*.9,eg*.86);
+    const sx=x+w*.1, sw2=w*.5, sy=GY-eg*.72, shh2=eg*.55;
+    fenster.push(neuesFenster({x:sx,y:sy,w:sw2,h:shh2,laden:true},fr));
+    g.fillStyle="#3b2618"; const tx=x+w*.68, tw=w*.2; g.fillRect(tx,GY-eg*.72,tw,eg*.72);
+    g.fillStyle="rgba(255,210,130,.5)"; g.fillRect(tx+tw*.2,GY-eg*.66,tw*.6,eg*.18);
+    v.strokeStyle="#2e5d35"; v.lineWidth=4*S; v.beginPath(); v.arc(tx+tw/2,GY-eg*.38,tw*.24,0,6.28); v.stroke();
+    v.fillStyle="#c8302c"; v.beginPath(); v.arc(tx+tw/2,GY-eg*.38+tw*.24,2.5*S,0,6.28); v.fill();
+    if(rnd()<.5){ const ax=sx-6*S, aw=sw2+12*S, ay=sy-10*S, ah=18*S, farb=pick(["#c8302c","#2f6b55"]);
+      for(let k=0;k<8;k++){ v.fillStyle=k%2?"#f4ecd8":farb; v.beginPath();
+        v.moveTo(ax+aw*k/8,ay); v.lineTo(ax+aw*(k+1)/8,ay); v.lineTo(ax+aw*(k+1)/8+1*S,ay+ah); v.lineTo(ax+aw*k/8-1*S,ay+ah); v.fill(); }
+      for(let k=0;k<8;k++){ v.fillStyle=k%2?"#f4ecd8":farb; v.beginPath(); v.arc(ax+aw*(k+.5)/8,ay+ah,aw/16,0,3.14); v.fill(); } }
+    // Girlande
+    if(rnd()<.75){ const gy=GY-eg-4*S, seg=Math.max(2,Math.round(w/(55*S)));
+      v.strokeStyle="#24502f"; v.lineWidth=6*S; v.lineCap="round";
+      for(let k=0;k<seg;k++){ const a=x+w*k/seg,b=x+w*(k+1)/seg; v.beginPath(); v.moveTo(a,gy); v.quadraticCurveTo((a+b)/2,gy+16*S,b,gy); v.stroke(); }
+      for(let k=0;k<=seg;k++){ const a=x+w*k/seg; v.fillStyle="#c8302c"; v.beginPath(); v.arc(a-3*S,gy,3*S,0,6.28); v.arc(a+3*S,gy,3*S,0,6.28); v.fill(); }
+      v.strokeStyle="rgba(255,255,255,.7)"; v.lineWidth=1.5*S;
+      for(let k=0;k<seg;k++){ const a=x+w*k/seg,b=x+w*(k+1)/seg; v.beginPath(); v.moveTo(a,gy-3*S); v.quadraticCurveTo((a+b)/2,gy+10*S,b,gy-3*S); v.stroke(); }
+    }
+    // Schnee auf Fensterbänken / Gesims
+    g.fillStyle="#f4f4f0"; g.fillRect(x,GY-eg-11*S,w,3*S);
+  }
+
+  const AUS=.06;
+  function neuesFenster(o,rahmen){
+    return Object.assign(o,{rahmen,farbe:pick(LICHT),b:r(.8,1),an:true,cur:1,deko:o.laden?Math.floor(rnd()*3):(rnd()<.2?3:-1)});
+  }
+
+  /* ---------------- Marktstand ---------------- */
+  function stand(g,x,base,w){
+    const hh=96*S, dach=34*S, top=base-hh, theke=38*S, holz=pick(["#7a4a2a","#8a5631","#6b4024"]), dachF=pick(["#7a2a22","#2f5a4e","#5b3a24"]);
+    const innen=g.createLinearGradient(0,top+dach,0,base-theke); innen.addColorStop(0,"#ffd98a"); innen.addColorStop(1,"#e09a48");
+    g.fillStyle=innen; g.fillRect(x+6*S,top+dach-4*S,w-12*S,hh-dach-theke+6*S);
+    // Regale mit Waren
+    for(let rr=0;rr<2;rr++){ const ry=top+dach+12*S+rr*15*S; g.fillStyle="rgba(90,50,20,.6)"; g.fillRect(x+8*S,ry+7*S,w-16*S,2*S);
+      for(let k=x+12*S;k<x+w-14*S;k+=r(7,11)*S){ g.fillStyle=pick(["#c8302c","#2f6b55","#e0b040","#f2ecdc","#8a4a2a","#d96a7a"]); g.fillRect(k,ry+7*S-r(5,8)*S,r(4,6)*S,r(5,8)*S); } }
+    // Pfosten
+    g.fillStyle=holz; g.fillRect(x+1*S,top+dach-6*S,6*S,hh-dach+6*S); g.fillRect(x+w-7*S,top+dach-6*S,6*S,hh-dach+6*S);
+    // Theke
+    g.fillStyle=holz; g.fillRect(x,base-theke,w,theke);
+    g.strokeStyle="rgba(0,0,0,.22)"; g.lineWidth=1; for(let k=x+10*S;k<x+w;k+=10*S){ g.beginPath(); g.moveTo(k,base-theke); g.lineTo(k,base); g.stroke(); }
+    g.fillStyle="#a8703f"; g.fillRect(x-4*S,base-theke-5*S,w+8*S,6*S);
+    g.fillStyle="#f4f1ea"; g.fillRect(x-4*S,base-theke-7*S,w+8*S,2.5*S);
+    // Waren auf der Theke
+    for(let k=x+8*S;k<x+w-14*S;k+=r(12,20)*S){ const t=rnd();
+      if(t<.4){ g.fillStyle="#8a4a22"; herz(g,k+5*S,base-theke-12*S,6*S); }
+      else if(t<.7){ g.fillStyle=pick(["#c8302c","#e8e2d0","#2f6b55"]); g.fillRect(k,base-theke-16*S,6*S,10*S); g.fillStyle="#fff"; g.fillRect(k,base-theke-16*S,6*S,2*S); }
+      else { g.fillStyle=pick(["#e0b040","#c8302c","#d96a7a"]); g.beginPath(); g.arc(k+4*S,base-theke-10*S,4*S,0,6.28); g.fill(); } }
+    // Dach
+    g.fillStyle=dachF; g.beginPath(); g.moveTo(x-12*S,top+dach); g.lineTo(x+w/2,top); g.lineTo(x+w+12*S,top+dach); g.fill();
+    g.fillStyle="#f4f4f0"; g.beginPath(); g.moveTo(x-14*S,top+dach-3*S); g.lineTo(x+w/2,top-4*S); g.lineTo(x+w+14*S,top+dach-3*S);
+    g.lineTo(x+w+4*S,top+dach-9*S); g.lineTo(x+w/2,top+5*S); g.lineTo(x-4*S,top+dach-9*S); g.fill();
+    // Volant
+    const vn=Math.round(w/(11*S));
+    for(let k=0;k<vn;k++){ g.fillStyle=k%2?"#f4ecd8":"#c8302c"; g.beginPath(); g.arc(x+w*(k+.5)/vn,top+dach,w/vn/2,0,3.14); g.fill(); }
+    // Tannenzweige am Giebel
+    g.fillStyle="#2d5a36"; g.beginPath(); g.ellipse(x+w/2,top+dach*.62,9*S,5*S,0,0,6.28); g.fill();
+    g.fillStyle="#c8302c"; g.beginPath(); g.arc(x+w/2,top+dach*.62,2.5*S,0,6.28); g.fill();
+    // Lichterkette an der Dachkante
+    for(let k=0;k<=9;k++){ const t=k/9, lx=x-8*S+(w+16*S)*t, ly=top+dach-1*S-(1-Math.abs(t*2-1))*(dach-4*S)+3*S; standLichter.push({x:lx,y:ly,p:r(0,6.28)}); }
+  }
+  function herz(g,x,y,s){ g.beginPath(); g.moveTo(x,y+s*.9); g.bezierCurveTo(x-s*1.2,y,x-s*.6,y-s*.8,x,y-s*.2); g.bezierCurveTo(x+s*.6,y-s*.8,x+s*1.2,y,x,y+s*.9); g.fill(); }
+
+  /* ---------------- Weihnachtsbaum ---------------- */
+  function tanne(g){
+    const mx=W/2, base=GY+46*S, th=Math.min(H*.66,base-H*.08), tip=base-th, tw=th*.58;
+    spitze={x:mx,y:tip};
+    // Stamm & Sockel
+    g.fillStyle="#4a2e1c"; g.fillRect(mx-8*S,base-th*.08,16*S,th*.08);
+    const n=9;
+    for(let i=n-1;i>=0;i--){
+      const yT=tip+th*.9*(i/n)*.9, yB=tip+th*.92*((i+1)/n), hwT=tw/2*(i/n)*.55, hwB=tw/2*((i+1)/n);
+      const gr=g.createLinearGradient(mx-hwB,0,mx+hwB,0); gr.addColorStop(0,"#123a26"); gr.addColorStop(.5,"#2b6a43"); gr.addColorStop(1,"#0f3221");
+      g.fillStyle=gr; g.beginPath(); g.moveTo(mx-hwT,yT); g.lineTo(mx+hwT,yT); g.lineTo(mx+hwB,yB);
+      for(let xx=mx+hwB;xx>mx-hwB;xx-=8*S) g.lineTo(xx,yB+r(1,7)*S);
+      g.lineTo(mx-hwB,yB); g.closePath(); g.fill();
+    }
+    g.lineCap="round";
+    for(let i=0,k=Math.round(1100*S);i<k;i++){ const f=Math.sqrt(rnd())*.92, y=tip+th*f, hw=tw/2*f*.95, x=mx+r(-hw,hw);
+      g.strokeStyle=pick(["rgba(70,140,90,.55)","rgba(15,50,30,.6)","rgba(110,170,110,.35)"]); g.lineWidth=1.3*S;
+      const s=x<mx?-1:1; g.beginPath(); g.moveTo(x,y); g.lineTo(x+s*r(3,7)*S,y+r(2,5)*S); g.stroke(); }
+    // Kugeln & Sterne
+    for(let i=0,k=Math.round(30*S+8);i<k;i++){ const f=r(.12,.9), y=tip+th*f, hw=tw/2*f*.8, x=mx+r(-hw,hw), rr=r(3,5.5)*S;
+      g.fillStyle=pick(["#c8302c","#e0b040","#d96a7a","#e8e2d0","#b82a2a"]); g.beginPath(); g.arc(x,y,rr,0,6.28); g.fill();
+      g.fillStyle="rgba(255,255,255,.7)"; g.beginPath(); g.arc(x-rr*.35,y-rr*.35,rr*.3,0,6.28); g.fill(); }
+    for(let i=0;i<5;i++){ const f=r(.25,.85), y=tip+th*f, hw=tw/2*f*.7; stern(g,mx+r(-hw,hw),y,6*S,2.6*S,"#e9c25a",5); }
+    // Lichterkette im Baum
+    for(let i=0,k=Math.round(170*S+40);i<k;i++){ const f=Math.sqrt(rnd())*.9+.03, y=tip+th*f, hw=tw/2*f*.9;
+      lichter.push({x:mx+r(-hw,hw),y,p:r(0,6.28),s:r(1,3)}); }
+    // Sockel mit Geschenken
+    const pw=tw*.5, ph=24*S;
+    g.fillStyle="#7fa898"; g.fillRect(mx-pw/2,base-ph*.4,pw,ph);
+    g.fillStyle="#9cc2b3"; g.beginPath(); g.ellipse(mx,base-ph*.4,pw/2,ph*.35,0,0,6.28); g.fill();
+    for(let i=0;i<6;i++){ const bw=r(12,22)*S, bx=mx+r(-pw*.4,pw*.4-bw), bh=r(10,18)*S, by=base-ph*.4-bh+r(0,4)*S;
+      g.fillStyle=pick(["#c8302c","#e0b040","#2f6b55","#f0e6d0"]); g.fillRect(bx,by,bw,bh);
+      g.fillStyle="#f6e7b0"; g.fillRect(bx+bw/2-1.5*S,by,3*S,bh); }
+    return tw;
+  }
+  function stern(g,x,y,R,ri,farbe,n){ g.fillStyle=farbe; g.beginPath();
+    for(let i=0;i<n*2;i++){ const a=-Math.PI/2+i*Math.PI/n, rr=i%2?ri:R; g.lineTo(x+Math.cos(a)*rr,y+Math.sin(a)*rr); } g.closePath(); g.fill(); }
+
+  function kahlerBaum(g,x,y){ g.lineCap="round";
+    const ast=(x,y,l,a,d)=>{ const x2=x+Math.cos(a)*l,y2=y+Math.sin(a)*l;
+      g.strokeStyle="#3a2a22"; g.lineWidth=Math.max(1,d*1.6*S); g.beginPath(); g.moveTo(x,y); g.lineTo(x2,y2); g.stroke();
+      if(d<5&&rnd()<.7){ g.strokeStyle="rgba(255,255,255,.85)"; g.lineWidth=Math.max(.8,d*.6*S); g.beginPath(); g.moveTo(x,y-1); g.lineTo(x2,y2-1); g.stroke(); }
+      if(d>0){ ast(x2,y2,l*r(.66,.8),a-r(.25,.6),d-1); ast(x2,y2,l*r(.66,.8),a+r(.25,.6),d-1); if(rnd()<.3) ast(x2,y2,l*.6,a+r(-.2,.2),d-1); } };
+    ast(x,y,r(60,80)*S,-Math.PI/2+r(-.05,.05),6);
+  }
+  function laterne(g,x,y){ const hh=150*S;
+    g.fillStyle="#22352f"; g.fillRect(x-2.5*S,y-hh,5*S,hh); g.fillRect(x-7*S,y-8*S,14*S,8*S); g.fillRect(x-5*S,y-hh*.55,10*S,4*S);
+    const ly=y-hh-22*S;
+    g.fillStyle="#ffd98a"; g.beginPath(); g.moveTo(x-9*S,ly); g.lineTo(x+9*S,ly); g.lineTo(x+6*S,ly+22*S); g.lineTo(x-6*S,ly+22*S); g.fill();
+    g.strokeStyle="#22352f"; g.lineWidth=2*S; g.stroke(); g.beginPath(); g.moveTo(x,ly); g.lineTo(x,ly+22*S); g.stroke();
+    g.fillStyle="#22352f"; g.beginPath(); g.moveTo(x-12*S,ly); g.lineTo(x,ly-10*S); g.lineTo(x+12*S,ly); g.fill();
+    g.fillStyle="#f4f4f0"; g.beginPath(); g.moveTo(x-10*S,ly-2*S); g.lineTo(x,ly-10*S); g.lineTo(x+10*S,ly-2*S); g.fill();
+    laternen.push({x,y:ly+11*S,p:r(0,6.28)});
+  }
+
+  /* ---------------- Menschen & Hunde ---------------- */
+  const MANTEL=["#8a2a24","#2f5a4e","#c26a3a","#3b3b46","#a8773a","#6b2a3a","#d9c7a0","#2b4a6b","#b8442f","#4f6b3a"];
+  const HAUT=["#f1c7a5","#e0a982","#c68a5e","#8d5a3b","#f5d6bc"];
+  function neuePerson(){
+    const d=rnd(), kind=rnd()<.25, p=S*(.75+.6*d);
+    const m={x:r(-40,W+40), y:YMIN+d*Math.max(10,H-YMIN-8*S), p, kind, h:(kind?44:66)*p,
+      dir:rnd()<.5?-1:1, tempo:r(16,30)*p, laeuft:rnd()<.72, timer:r(3,20), ph:r(0,6.28),
+      mantel:pick(MANTEL), haut:pick(HAUT), haar:pick(["#2b1d14","#5a3a22","#b08850","#1b1b1b","#8b8b8b"]),
+      hut:Math.floor(rnd()*4), hutF:pick(["#c8302c","#2f6b55","#efe3c4","#3b3b46","#b8442f"]), schal:pick(["#c8302c","#efe3c4","#2f6b55","#e0b040"])};
+    m.hund = !kind && rnd()<.18 ? {farbe:pick(["#a0612f","#c99a5b","#e8dcc6","#3a2a22"])} : null;
+    return m;
+  }
+  function person(m,t){
+    const h=m.h, x=m.x, y=m.y, ph=m.laeuft? m.ph : 0;
+    const sw=m.laeuft?Math.sin(ph)*.42:0, bob=m.laeuft?Math.abs(Math.cos(ph))*h*.02:Math.sin(t*1.6+m.x)*h*.006;
+    const hip=y-h*.40-bob, sh=y-h*.80-bob, ky=y-h*.89-bob, hr=h*.085;
+    cx.fillStyle="rgba(60,45,30,.16)"; cx.beginPath(); cx.ellipse(x,y+1,h*.17,h*.035,0,0,6.28); cx.fill();
+    if(m.hund) hund(m,t);
+    cx.save(); cx.translate(x,0); cx.scale(m.dir,1); cx.translate(-x,0);   // Blickrichtung = Laufrichtung
+    cx.lineCap="round"; cx.strokeStyle="#2b2622"; cx.lineWidth=h*.07;
+    [1,-1].forEach(s=>{ const l=y-hip; cx.beginPath(); cx.moveTo(x,hip); cx.lineTo(x+Math.sin(sw*s)*l,hip+Math.cos(sw*s)*l); cx.stroke(); });
+    // Mantel
+    cx.fillStyle=m.mantel; cx.beginPath(); cx.moveTo(x-h*.1,sh); cx.lineTo(x+h*.1,sh);
+    cx.lineTo(x+h*.15,y-h*.34-bob); cx.quadraticCurveTo(x,y-h*.31-bob,x-h*.15,y-h*.34-bob); cx.closePath(); cx.fill();
+    // Arm
+    cx.strokeStyle=shade(m.mantel); cx.lineWidth=h*.07; const al=h*.3;
+    cx.beginPath(); cx.moveTo(x,sh+h*.03); cx.lineTo(x+Math.sin(-sw*.8)*al,sh+h*.03+Math.cos(sw*.8)*al); cx.stroke();
+    // Schal
+    cx.fillStyle=m.schal; cx.fillRect(x-h*.085,sh-h*.035,h*.17,h*.06); cx.fillRect(x-h*.06,sh,h*.045,h*.13);
+    // Kopf
+    cx.fillStyle=m.haut; cx.beginPath(); cx.arc(x,ky,hr,0,6.28); cx.fill();
+    cx.beginPath(); cx.arc(x+hr*.95,ky+hr*.1,hr*.28,0,6.28); cx.fill();   // Nase zeigt die Blickrichtung
+    if(m.hut===0){ cx.fillStyle=m.haar; cx.beginPath(); cx.arc(x,ky-hr*.15,hr*1.02,Math.PI,0); cx.fill(); }
+    else if(m.hut===1){ cx.fillStyle=m.hutF; cx.beginPath(); cx.arc(x,ky-hr*.1,hr*1.08,Math.PI,0); cx.fill();
+      cx.fillStyle="#f4f0e6"; cx.beginPath(); cx.arc(x,ky-hr*1.2,hr*.35,0,6.28); cx.fill(); }
+    else if(m.hut===2){ cx.fillStyle="#2a2522"; cx.fillRect(x-hr*1.4,ky-hr*.55,hr*2.8,hr*.3); cx.beginPath(); cx.arc(x,ky-hr*.55,hr*.85,Math.PI,0); cx.fill(); }
+    else { cx.fillStyle=m.hutF; cx.beginPath(); cx.ellipse(x-hr*.2,ky-hr*.55,hr*1.15,hr*.45,.15,0,6.28); cx.fill(); }
+    cx.restore();
+  }
+  function hund(m,t){
+    const p=m.h, x=m.x+m.dir*p*.42, y=m.y+p*.03, sw=m.laeuft?Math.sin(m.ph*1.4)*.5:0, F=m.hund.farbe;
+    cx.strokeStyle="rgba(40,30,20,.6)"; cx.lineWidth=1; cx.beginPath(); cx.moveTo(m.x+m.dir*p*.1,m.y-p*.5); cx.quadraticCurveTo(x,y-p*.35,x+m.dir*p*.1,y-p*.22); cx.stroke();
+    cx.strokeStyle=shade(F); cx.lineWidth=p*.035; cx.lineCap="round";
+    [[-.08,1],[-.05,-1],[.08,-1],[.11,1]].forEach(([o,s])=>{ cx.beginPath(); cx.moveTo(x+m.dir*p*o,y-p*.14); cx.lineTo(x+m.dir*p*o+Math.sin(sw*s)*p*.12,y); cx.stroke(); });
+    cx.fillStyle=F; cx.beginPath(); cx.ellipse(x,y-p*.16,p*.13,p*.055,0,0,6.28); cx.fill();
+    cx.beginPath(); cx.arc(x+m.dir*p*.14,y-p*.22,p*.05,0,6.28); cx.fill();
+    cx.beginPath(); cx.ellipse(x+m.dir*p*.19,y-p*.2,p*.035,p*.022,0,0,6.28); cx.fill();
+    cx.fillStyle=shade(F); cx.beginPath(); cx.ellipse(x+m.dir*p*.12,y-p*.25,p*.02,p*.035,.3*m.dir,0,6.28); cx.fill();
+    cx.strokeStyle=F; cx.lineWidth=p*.025; cx.beginPath(); cx.moveTo(x-m.dir*p*.12,y-p*.17); cx.lineTo(x-m.dir*p*.19,y-p*.25+Math.sin(t*9)*p*.02); cx.stroke();
+  }
+  function shade(hex){ const n=parseInt(hex.slice(1),16); const f=v=>Math.round(v*.72); return `rgb(${f(n>>16)},${f((n>>8)&255)},${f(n&255)})`; }
+
+
+
+  /* ---------------- Weihnachtsmann mit Schlitten ---------------- */
+  const schlitten={aktiv:false,start:7,staub:[],mal:0};
+  function schlittenStart(t){
+    const s=schlitten; s.aktiv=true; s.mal++; s.boden=s.mal%2===1; s.dir=Math.random()<.5?1:-1;
+    s.u=s.boden?S*.95:S*.55; s.v=(s.boden?150:200)*S; s.x=s.dir>0?-60*S:W+320*s.u; s.t0=t;
+  }
+  function schlittenZeichnen(t,dt){
+    const s=schlitten;
+    if(!s.aktiv){ if(t>s.start) schlittenStart(t); return; }
+    s.x+=s.dir*s.v*dt;
+    const p=(t-s.t0), y=s.boden? Math.max(YMIN+40*S,H-16*S)+Math.sin(t*18)*1.2*S : H*.11+Math.sin(p*1.3)*H*.03;
+    if(s.boden){ for(let k=0;k<2;k++) s.staub.push({x:s.x-s.dir*R(-5,10)*s.u,y:y-R(0,4)*S,vx:-s.dir*R(10,50)*S,vy:-R(10,35)*S,l:1,r:R(2,5)*S}); }
+    zeichneSchlitten(s.x,y,s.u,s.dir,t);
+    const ende=s.dir>0? s.x>W+60*S : s.x< -360*s.u;
+    if(ende){ s.aktiv=false; s.start=t+R(30,60); }
+  }
+  function staubZeichnen(dt){
+    const st=schlitten.staub; cx.fillStyle="#fff";
+    for(let i=st.length-1;i>=0;i--){ const d=st[i]; d.x+=d.vx*dt; d.y+=d.vy*dt; d.vy+=40*S*dt; d.l-=dt*1.1;
+      if(d.l<=0){ st.splice(i,1); continue; } cx.globalAlpha=d.l*.8; cx.beginPath(); cx.arc(d.x,d.y,d.r,0,6.28); cx.fill(); }
+    cx.globalAlpha=1;
+  }
+  function zeichneSchlitten(x,y,u,dir,t){
+    cx.save(); cx.translate(x,y); cx.scale(dir*u,u); cx.lineCap="round"; cx.lineJoin="round";
+    const rentiere=[0,1,2,3].map(i=>({x:128+i*46,y:-30+(i%2)*4,ph:t*13+i*1.1}));
+    // Zugleine
+    cx.strokeStyle="#c9a040"; cx.lineWidth=1.6;
+    rentiere.forEach(rt=>{ cx.beginPath(); cx.moveTo(76,-56); cx.quadraticCurveTo((76+rt.x)/2,-44,rt.x-6,rt.y-6); cx.stroke(); });
+    cx.beginPath(); cx.moveTo(94,-24); cx.lineTo(rentiere[3].x,-28); cx.stroke();
+    rentiere.forEach((rt,i)=>{
+      const {x:X,y:Y,ph}=rt; cx.strokeStyle="#5a3a22"; cx.lineWidth=3.5;
+      [[12,0],[8,.5],[-12,Math.PI],[-15,Math.PI+.5]].forEach(([o,ver])=>{ const a=Math.sin(ph+ver)*.6;
+        cx.beginPath(); cx.moveTo(X+o,Y+4); cx.lineTo(X+o+Math.sin(a)*22,Y+4+Math.cos(a)*22); cx.stroke(); });
+      cx.fillStyle="#8b5a33"; cx.beginPath(); cx.ellipse(X,Y,19,9.5,0,0,6.28); cx.fill();
+      cx.fillStyle="#c99a6a"; cx.beginPath(); cx.ellipse(X,Y+4,13,4,0,0,6.28); cx.fill();
+      cx.fillStyle="#8b5a33"; cx.beginPath(); cx.moveTo(X+9,Y-6); cx.lineTo(X+20,Y-22); cx.lineTo(X+27,Y-18); cx.lineTo(X+18,Y+1); cx.fill();
+      cx.beginPath(); cx.ellipse(X+27,Y-22,8.5,5,.3,0,6.28); cx.fill();
+      cx.fillStyle="#f3efe6"; cx.beginPath(); cx.arc(X-19,Y-4,3,0,6.28); cx.fill();
+      cx.strokeStyle="#4a3020"; cx.lineWidth=2;
+      [[0,0],[4,1]].forEach(([o,q])=>{ cx.beginPath(); cx.moveTo(X+23+o,Y-26); cx.lineTo(X+19+o,Y-40); cx.moveTo(X+21+o,Y-33); cx.lineTo(X+27+o,Y-38); cx.moveTo(X+20+o,Y-37); cx.lineTo(X+15+o,Y-43); cx.stroke(); });
+      cx.fillStyle="#1d140c"; cx.beginPath(); cx.arc(X+29,Y-24,1.2,0,6.28); cx.fill();
+      const rot=i===3; cx.fillStyle=rot?"#e3302a":"#2a1a10"; cx.beginPath(); cx.arc(X+35,Y-19,rot?3.2:2.4,0,6.28); cx.fill();
+      if(rot){ cx.globalCompositeOperation="lighter"; cx.globalAlpha=.6+.3*Math.sin(t*6); cx.drawImage(glow,X+35-12,Y-19-12,24,24); cx.globalAlpha=1; cx.globalCompositeOperation="source-over"; }
+      cx.strokeStyle="#b8262a"; cx.lineWidth=3; cx.beginPath(); cx.moveTo(X-4,Y-9); cx.lineTo(X-4,Y+9); cx.stroke();
+      cx.fillStyle="#e8c15a"; cx.beginPath(); cx.arc(X-4,Y+9,2.3,0,6.28); cx.fill();
+    });
+    // Kufen
+    cx.strokeStyle="#d9b24a"; cx.lineWidth=3.5; cx.beginPath(); cx.moveTo(-12,0); cx.lineTo(92,0);
+    cx.quadraticCurveTo(108,0,106,-12); cx.quadraticCurveTo(104,-20,97,-16); cx.stroke();
+    cx.beginPath(); cx.moveTo(10,0); cx.lineTo(10,-10); cx.moveTo(72,0); cx.lineTo(72,-10); cx.stroke();
+    // Sack mit Geschenken
+    cx.fillStyle="#8a5a32"; cx.beginPath(); cx.ellipse(10,-62,20,18,0,0,6.28); cx.fill();
+    [["#2f6b55",-6,-86,12],["#e0b040",6,-90,11],["#c8302c",14,-82,10]].forEach(([f,a,b,s])=>{ cx.fillStyle=f; cx.fillRect(a,b,s,s); cx.fillStyle="#f6e7b0"; cx.fillRect(a+s/2-1,b,2,s); });
+    // Schlitten
+    const k=()=>{ cx.beginPath(); cx.moveTo(-8,-10); cx.lineTo(-14,-56); cx.quadraticCurveTo(-12,-66,-2,-62); cx.lineTo(12,-40); cx.lineTo(80,-36); cx.quadraticCurveTo(98,-36,96,-22); cx.lineTo(90,-10); cx.closePath(); };
+    cx.fillStyle="#b8262a"; k(); cx.fill(); cx.strokeStyle="#e8c15a"; cx.lineWidth=2.5; k(); cx.stroke();
+    cx.beginPath(); cx.moveTo(20,-28); cx.quadraticCurveTo(45,-18,70,-28); cx.stroke();
+    // Weihnachtsmann
+    cx.fillStyle="#c8262a"; cx.beginPath(); cx.ellipse(52,-54,16,18,0,0,6.28); cx.fill();
+    cx.fillStyle="#1b1b1b"; cx.fillRect(37,-54,30,4); cx.fillStyle="#e8c15a"; cx.fillRect(49,-55,6,6);
+    cx.fillStyle="#f6f3ec"; cx.fillRect(37,-40,30,4);
+    cx.strokeStyle="#c8262a"; cx.lineWidth=5.5; cx.beginPath(); cx.moveTo(56,-60); cx.lineTo(74,-56); cx.stroke();
+    cx.fillStyle="#1b1b1b"; cx.beginPath(); cx.arc(76,-56,3.4,0,6.28); cx.fill();
+    cx.fillStyle="#f1c7a5"; cx.beginPath(); cx.arc(56,-78,8,0,6.28); cx.fill();
+    cx.fillStyle="#f6f3ec"; cx.beginPath(); cx.ellipse(60,-71,8,9.5,.2,0,6.28); cx.fill();
+    cx.fillStyle="#c8262a"; cx.beginPath(); cx.moveTo(47,-80); cx.lineTo(64,-82); cx.quadraticCurveTo(52,-100,40,-96); cx.fill();
+    cx.fillStyle="#f6f3ec"; cx.fillRect(46,-84,19,5); cx.beginPath(); cx.arc(40,-96,3.8,0,6.28); cx.fill();
+    cx.restore();
+  }
+
+  /* ---------------- Animation ---------------- */
+  let last=performance.now(), T=0, naechsterWechsel=4;
+  function frame(now){
+    const dt=Math.min(.05,(now-last)/1000); last=now; T+=dt; const t=T;
+    cx.drawImage(L.himmel,0,0,W,H);
+    funkel.forEach(f=>{ const k=.75+.35*Math.sin(t*1.7+f.p); cx.globalAlpha=.25*k; cx.globalCompositeOperation="lighter";
+      cx.drawImage(glow,f.x-f.R*2,f.y-f.R*2,f.R*4,f.R*4); cx.globalCompositeOperation="source-over"; cx.globalAlpha=1;
+      stern(cx,f.x,f.y,f.R*k,f.R*.16,"#f5d27a",4); });
+    if(!ruhig && schlitten.aktiv && !schlitten.boden) schlittenZeichnen(t,dt);
+    cx.drawImage(L.haeuser,0,0,W,H);
+
+    // Licht geht sparsam an oder aus: alle paar Sekunden genau ein Fenster
+    if(!ruhig && t>naechsterWechsel){ naechsterWechsel=t+R(2.5,6);
+      const kand=fenster.filter(f=>!f.laden), aus=kand.filter(f=>!f.an), an=kand.filter(f=>f.an);
+      const f=(aus.length/kand.length>.1 || (aus.length&&Math.random()<.5)) ? aus[Math.floor(Math.random()*aus.length)] : an[Math.floor(Math.random()*an.length)];
+      if(f) f.an=!f.an; }
+    fenster.forEach(f=>{
+      f.cur+=((f.an?1:AUS)-f.cur)*Math.min(1,dt*5); const b=f.b*f.cur;
+      cx.fillStyle="#2a1c12"; fpfad(f); cx.fill();
+      cx.globalAlpha=b; cx.fillStyle=f.farbe; fpfad(f); cx.fill();
+      if(f.deko>=0){ cx.globalAlpha=b*.55; cx.fillStyle="#7a3b1c";
+        if(f.deko===0||f.deko===3){ cx.fillStyle="#3d5a2a"; cx.beginPath(); cx.moveTo(f.x+f.w*.5,f.y+f.h*.25); cx.lineTo(f.x+f.w*.75,f.y+f.h); cx.lineTo(f.x+f.w*.25,f.y+f.h); cx.fill(); }
+        else { for(let k=0;k<3;k++){ const px=f.x+f.w*(.2+k*.3); cx.beginPath(); cx.arc(px,f.y+f.h*.5,f.w*.05,0,6.28); cx.fill(); cx.fillRect(px-f.w*.05,f.y+f.h*.58,f.w*.1,f.h*.42); } } }
+      cx.globalAlpha=b*.45; cx.globalCompositeOperation="lighter";
+      cx.drawImage(glow,f.x-f.w*.9,f.y-f.h*.6,f.w*2.8,f.h*2.2);
+      cx.globalCompositeOperation="source-over"; cx.globalAlpha=1;
+      cx.strokeStyle=f.rahmen; cx.lineWidth=Math.max(1,1.8*S); fpfad(f); cx.stroke();
+      if(!f.laden){ cx.beginPath(); cx.moveTo(f.x+f.w/2,f.y+(f.bogen?f.w*.2:0)); cx.lineTo(f.x+f.w/2,f.y+f.h); cx.moveTo(f.x,f.y+f.h*.5); cx.lineTo(f.x+f.w,f.y+f.h*.5); cx.stroke(); }
+      else { cx.beginPath(); cx.moveTo(f.x+f.w/3,f.y); cx.lineTo(f.x+f.w/3,f.y+f.h); cx.moveTo(f.x+f.w*2/3,f.y); cx.lineTo(f.x+f.w*2/3,f.y+f.h); cx.stroke(); }
+    });
+    cx.drawImage(L.vorn,0,0,W,H);
+    cx.globalCompositeOperation="lighter";
+    laternen.forEach(l=>{ const R2=70*S; cx.globalAlpha=.5; cx.drawImage(glow,l.x-R2,l.y-R2,R2*2,R2*2); });
+    lichter.forEach(l=>{ const a=.25+.75*Math.abs(Math.sin(t*l.s+l.p)); cx.globalAlpha=a*.6; const R2=7*S; cx.drawImage(glow,l.x-R2,l.y-R2,R2*2,R2*2); });
+    cx.globalAlpha=1; cx.globalCompositeOperation="source-over";
+    lichter.forEach(l=>{ cx.globalAlpha=.35+.65*Math.abs(Math.sin(t*l.s+l.p)); cx.fillStyle="#fff3c0"; cx.beginPath(); cx.arc(l.x,l.y,1.5*S,0,6.28); cx.fill(); });
+    cx.globalAlpha=1;
+    const k=1+.08*Math.sin(t*2.2), RS=26*S*k;
+    cx.globalCompositeOperation="lighter"; cx.globalAlpha=.7; cx.drawImage(glow,spitze.x-RS*2.2,spitze.y-RS*2.2,RS*4.4,RS*4.4);
+    cx.globalAlpha=1; cx.globalCompositeOperation="source-over";
+    cx.save(); cx.translate(spitze.x,spitze.y-4*S); cx.rotate(Math.sin(t*.5)*.04);
+    stern(cx,0,0,RS*.75,RS*.12,"#f6d77c",4); cx.rotate(Math.PI/4); stern(cx,0,0,RS*.45,RS*.1,"#ffe9a8",4); cx.restore();
+    // Marktstände mit Lichterketten
+    cx.drawImage(L.staende,0,0,W,H);
+    cx.globalCompositeOperation="lighter";
+    standLichter.forEach(l=>{ cx.globalAlpha=.5+.15*Math.sin(t*1.5+l.p); const R2=9*S; cx.drawImage(glow,l.x-R2,l.y-R2,R2*2,R2*2); });
+    cx.globalCompositeOperation="source-over"; cx.globalAlpha=1; cx.fillStyle="#fff1b8";
+    standLichter.forEach(l=>{ cx.beginPath(); cx.arc(l.x,l.y,1.8*S,0,6.28); cx.fill(); });
+    // Menschen
+    leute.forEach(m=>{
+      if(!ruhig){ m.timer-=dt; if(m.timer<=0){ m.laeuft=!m.laeuft; m.timer=m.laeuft?R(8,25):R(2,7); }
+        if(m.laeuft){ m.x+=m.dir*m.tempo*dt; m.ph+=dt*m.tempo/(m.h*.16); } }
+      if(m.x>W+60) m.x=-60; if(m.x<-60) m.x=W+60;
+      person(m,t);
+    });
+    if(!ruhig){ staubZeichnen(dt); if(!schlitten.aktiv || schlitten.boden) schlittenZeichnen(t,dt); }
+    // Schnee: gleichmäßig, sanfter Wind, seitlich umlaufend
+    const wind=(Math.sin(t*.11)*.6+Math.sin(t*.037+1)*.4)*16;
+    cx.fillStyle="#fff";
+    flocken.forEach(f=>{
+      if(!ruhig){ f.y+=f.v*dt; f.x+=(Math.sin(t*.7+f.ph)*6+wind)*(.5+f.z*.5)*dt;
+        if(f.x<-6) f.x+=W+12; else if(f.x>W+6) f.x-=W+12;
+        if(f.y>H+6){ f.y=-6; f.x=Math.random()*W; } }
+      cx.globalAlpha=f.a; cx.beginPath(); cx.arc(f.x,f.y,f.r,0,6.28); cx.fill(); });
+    cx.globalAlpha=1;
+    if(!ruhig) requestAnimationFrame(frame);
+  }
+  function fpfad(f){ cx.beginPath();
+    if(f.bogen){ const rr=f.w/2; cx.moveTo(f.x,f.y+f.h); cx.lineTo(f.x,f.y+rr); cx.arc(f.x+rr,f.y+rr,rr,Math.PI,0); cx.lineTo(f.x+f.w,f.y+f.h); cx.closePath(); }
+    else cx.rect(f.x,f.y,f.w,f.h); }
+
+  let rT; addEventListener("resize",()=>{clearTimeout(rT); rT=setTimeout(()=>{aufbauen(); if(ruhig) frame(performance.now());},150);});
+  aufbauen(); requestAnimationFrame(frame);
+})();
+}
+</script>
+</body>
+</html>
